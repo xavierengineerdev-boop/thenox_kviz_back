@@ -31,6 +31,8 @@ app.use(
       'http://localhost:5174',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
+      'https://quizthenox.live',
+      'https://www.quizthenox.live',
     ],
     credentials: true,
   }),
@@ -39,6 +41,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 app.use(requestLogger);
+
+// Тестовый эндпоинт для проверки работы сервера
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    routes: {
+      analytics: '/api/analytics/event (POST)',
+      lead: '/api/lead (POST)',
+      health: '/api/analytics/health (GET)',
+    },
+  });
+});
 
 // Маршруты для /api/analytics/*
 app.use('/api/analytics', analyticsRoutes);
@@ -50,6 +66,12 @@ app.get('/', (req, res) => {
     success: true,
     message: 'KVIZ Analytics API',
     version: '1.0.0',
+    endpoints: {
+      analytics: '/api/analytics/event (POST)',
+      lead: '/api/lead (POST)',
+      health: '/api/analytics/health (GET)',
+      serverHealth: '/health (GET)',
+    },
   });
 });
 

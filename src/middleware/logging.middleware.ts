@@ -34,6 +34,8 @@ export const requestLogger = (req: RequestWithAnalytics, res: Response, next: Ne
   logger.info('Incoming request', {
     method: req.method,
     url: req.originalUrl,
+    path: req.path,
+    baseUrl: req.baseUrl,
     ip,
     userAgent,
   });
