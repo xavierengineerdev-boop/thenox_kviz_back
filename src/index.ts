@@ -56,6 +56,30 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Диагностический эндпоинт для проверки всех зарегистрированных маршрутов
+app.get('/api/routes', (req, res) => {
+  const routes: string[] = [];
+  app._router?.stack?.forEach((middleware: any) => {
+    if (middleware.route) {
+      routes.push(`${Object.keys(middleware.route.methods).join(', ').toUpperCase()} ${middleware.route.path}`);
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack?.forEach((handler: any) => {
+        if (handler.route) {
+          const method = Object.keys(handler.route.methods).join(', ').toUpperCase();
+          routes.push(`${method} ${middleware.regexp.source.replace(/\\\//g, '/').replace(/\^|\$/g, '')}${handler.route.path}`);
+        }
+      });
+    }
+  });
+  
+  res.json({
+    success: true,
+    message: 'Registered routes',
+    routes,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Маршруты для /api/analytics/*
 app.use('/api/analytics', analyticsRoutes);
 // Маршруты для /api/* (например, /api/lead, /api/health)
