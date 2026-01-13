@@ -100,6 +100,25 @@ router.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// GET эндпоинты для проверки (только для диагностики)
+router.get('/event', (req: Request, res: Response) => {
+  res.json({
+    success: false,
+    message: 'This endpoint requires POST method. Use POST /api/analytics/event',
+    method: 'GET',
+    requiredMethod: 'POST',
+  });
+});
+
+router.get('/lead', (req: Request, res: Response) => {
+  res.json({
+    success: false,
+    message: 'This endpoint requires POST method. Use POST /api/lead',
+    method: 'GET',
+    requiredMethod: 'POST',
+  });
+});
+
 router.post('/test', (req: Request, res: Response) => {
   logger.info('Test endpoint called', { body: req.body });
   res.json({

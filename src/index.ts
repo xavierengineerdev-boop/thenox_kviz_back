@@ -40,7 +40,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 app.use(requestLogger);
 
+// Маршруты для /api/analytics/*
 app.use('/api/analytics', analyticsRoutes);
+// Маршруты для /api/* (например, /api/lead, /api/health)
 app.use('/api', analyticsRoutes);
 
 app.get('/', (req, res) => {
