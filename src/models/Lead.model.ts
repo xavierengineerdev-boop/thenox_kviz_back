@@ -60,9 +60,12 @@ const LeadSchema: Schema = new Schema(
   },
 );
 
-// Создаем индекс для быстрого поиска дубликатов
+// Создаем индексы для быстрого поиска дубликатов
 LeadSchema.index({ phoneHash: 1 });
 LeadSchema.index({ 'lead.phone': 1 });
+// Индекс для проверки IP с учетом даты создания (для проверки одной заявки в день)
+LeadSchema.index({ 'userData.ip': 1, createdAt: -1 });
+LeadSchema.index({ 'userData.realIP': 1, createdAt: -1 });
 
 export const Lead = mongoose.model<ILead>('Lead', LeadSchema);
 

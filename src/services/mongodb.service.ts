@@ -90,28 +90,103 @@ class MongoDBService {
   }
 
   /**
+   * Проверка существования заявки с IP за последние 24 часа
+   */
+  async findLeadByIP(ip: string): Promise<ILead | null> {
+    try {
+      if (!ip || ip === 'unknown') {
+        return null;
+      }
+
+      // Вычисляем дату 24 часа назад
+      const oneDayAgo = new Date();
+      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+
+      // Ищем заявку с этим IP за последние 24 часа
+      const lead = await Lead.findOne({
+        $or: [
+          { 'userData.ip': ip },
+          { 'userData.realIP': ip },
+        ],
+        createdAt: { $gte: oneDayAgo },
+      }).sort({ createdAt: -1 });
+
+      return lead;
+    } catch (error: any) {
+      logger.error('Error finding lead by IP', { error: error.message, ip });
+      return null;
+    }
+  }
+
+  /**
    * Сохранение лида в базу данных
    */
   async saveLead(
     leadData: LeadData,
     utmParams?: any,
     userData?: any,
-  ): Promise<{ success: boolean; isDuplicate: boolean; lead?: ILead; error?: string }> {
+  ): Promise<{ success: boolean; isDuplicate: boolean; isIPDuplicate?: boolean; lead?: ILead; error?: string }> {
     try {
-      // Проверяем на дубликат
-      const existingLead = await this.findLeadByPhone(leadData.phone);
+      // Проверяем на дубликат по телефону
+      const existingLeadByPhone = await this.findLeadByPhone(leadData.phone);
 
-      if (existingLead) {
-        logger.info('Duplicate lead detected', {
+      if (existingLeadByPhone) {
+        logger.info('Duplicate lead detected by phone', {
           phone: leadData.phone,
-          existingLeadId: existingLead._id,
-          createdAt: existingLead.createdAt,
+          existingLeadId: existingLeadByPhone._id,
+          createdAt: existingLeadByPhone.createdAt,
         });
         return {
           success: false,
           isDuplicate: true,
-          lead: existingLead,
+          isIPDuplicate: false,
+          lead: existingLeadByPhone,
         };
+      }
+
+      // Проверяем на дубликат по IP (одна заявка в день с одного IP)
+      // Проверяем оба IP адреса, если они есть
+      const ip = userData?.ip;
+      const realIP = userData?.realIP;
+      
+      // Проверяем основной IP
+      if (ip && ip !== 'unknown') {
+        const existingLeadByIP = await this.findLeadByIP(ip);
+        
+        if (existingLeadByIP) {
+          logger.info('Duplicate lead detected by IP (one request per day limit)', {
+            ip,
+            phone: leadData.phone,
+            existingLeadId: existingLeadByIP._id,
+            createdAt: existingLeadByIP.createdAt,
+          });
+          return {
+            success: false,
+            isDuplicate: false,
+            isIPDuplicate: true,
+            lead: existingLeadByIP,
+          };
+        }
+      }
+      
+      // Проверяем realIP, если он отличается от основного IP
+      if (realIP && realIP !== 'unknown' && realIP !== ip) {
+        const existingLeadByRealIP = await this.findLeadByIP(realIP);
+        
+        if (existingLeadByRealIP) {
+          logger.info('Duplicate lead detected by realIP (one request per day limit)', {
+            realIP,
+            phone: leadData.phone,
+            existingLeadId: existingLeadByRealIP._id,
+            createdAt: existingLeadByRealIP.createdAt,
+          });
+          return {
+            success: false,
+            isDuplicate: false,
+            isIPDuplicate: true,
+            lead: existingLeadByRealIP,
+          };
+        }
       }
 
       // Создаем новый лид
@@ -142,6 +217,7 @@ class MongoDBService {
       return {
         success: true,
         isDuplicate: false,
+        isIPDuplicate: false,
         lead: savedLead,
       };
     } catch (error: any) {
@@ -157,6 +233,7 @@ class MongoDBService {
         return {
           success: false,
           isDuplicate: true,
+          isIPDuplicate: false,
           lead: existingLead || undefined,
         };
       }
@@ -164,6 +241,7 @@ class MongoDBService {
       return {
         success: false,
         isDuplicate: false,
+        isIPDuplicate: false,
         error: error.message,
       };
     }

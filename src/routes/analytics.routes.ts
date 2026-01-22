@@ -53,9 +53,19 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       });
     }
 
+    // Получаем IP адрес из запроса
+    const clientIP = req.analytics?.ip || 
+      req.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.get('x-real-ip') ||
+      req.get('cf-connecting-ip') ||
+      req.get('x-client-ip') ||
+      req.ip ||
+      'unknown';
+
     const enrichedUserData = {
       ...userData,
-      ip: req.analytics?.ip,
+      ip: clientIP,
+      realIP: req.get('x-real-ip') || clientIP,
     };
 
     // Проверяем подключение к MongoDB
@@ -71,13 +81,16 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
     // Сохраняем лид в MongoDB с проверкой дубликатов
     let mongoResult;
     let isDuplicate = false;
+    let isIPDuplicate = false;
 
     if (mongodbService.isMongoConnected()) {
       mongoResult = await mongodbService.saveLead(lead, utmParams, enrichedUserData);
-      isDuplicate = mongoResult.isDuplicate;
+      isDuplicate = mongoResult.isDuplicate || false;
+      isIPDuplicate = mongoResult.isIPDuplicate || false;
 
+      // Проверка дубликата по телефону
       if (isDuplicate) {
-        logger.info('Duplicate lead detected, skipping save', {
+        logger.info('Duplicate lead detected by phone, skipping save', {
           phone: lead.phone,
           name: lead.name,
           existingLeadId: mongoResult.lead?._id,
@@ -87,6 +100,24 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
           success: false,
           message: 'Lead with this phone number already exists',
           isDuplicate: true,
+          isIPDuplicate: false,
+        });
+      }
+
+      // Проверка дубликата по IP (одна заявка в день с одного IP)
+      if (isIPDuplicate) {
+        logger.info('Duplicate lead detected by IP (one request per day limit), skipping save', {
+          ip: enrichedUserData.ip,
+          phone: lead.phone,
+          name: lead.name,
+          existingLeadId: mongoResult.lead?._id,
+        });
+
+        return res.status(429).json({
+          success: false,
+          message: 'Only one request per day is allowed from this IP address',
+          isDuplicate: false,
+          isIPDuplicate: true,
         });
       }
 
@@ -110,9 +141,9 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Отправляем в Telegram только если это не дубликат
+    // Отправляем в Telegram только если это не дубликат (ни по телефону, ни по IP)
     let telegramSent = false;
-    if (!isDuplicate) {
+    if (!isDuplicate && !isIPDuplicate) {
       telegramSent = await telegramService.sendLead({
         lead,
         utmParams,
@@ -126,8 +157,12 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
         });
       }
     } else {
+      const duplicateReason = isDuplicate ? 'phone' : 'IP';
       logger.info('Skipping Telegram notification for duplicate lead', {
         phone: lead.phone,
+        reason: duplicateReason,
+        isDuplicate,
+        isIPDuplicate,
       });
     }
 
@@ -137,6 +172,7 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       telegramSent,
       savedToMongo: mongoResult?.success || false,
       isDuplicate: false,
+      isIPDuplicate: false,
     });
   } catch (error: any) {
     logger.error('Error processing lead', { error: error.message, stack: error.stack });
