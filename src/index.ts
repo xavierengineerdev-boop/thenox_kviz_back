@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { errorLogger, requestLogger } from './middleware/logging.middleware';
 import analyticsRoutes from './routes/analytics.routes';
 import { logger } from './utils/logger';
+import mongodbService from './services/mongodb.service';
 
 dotenv.config();
 
@@ -103,6 +104,17 @@ app.use(errorLogger);
 
 let server: any;
 
+// Подключение к MongoDB
+mongodbService
+  .connect()
+  .then(() => {
+    logger.info('MongoDB connection established');
+  })
+  .catch((error) => {
+    logger.error('Failed to connect to MongoDB', { error: error.message });
+    logger.warn('Server will continue without MongoDB connection');
+  });
+
 try {
   server = app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
@@ -123,26 +135,31 @@ try {
   setTimeout(() => process.exit(0), 1000);
 }
 
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT signal received: closing HTTP server');
   if (server) {
-    server.close(() => {
+    server.close(async () => {
       logger.info('HTTP server closed');
+      await mongodbService.disconnect();
       process.exit(0);
     });
   } else {
+    await mongodbService.disconnect();
     process.exit(0);
   }
 });
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: closing HTTP server');
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM signal received: closing HTTP server');
   if (server) {
-    server.close(() => {
+    server.close(async () => {
       logger.info('HTTP server closed');
+      await mongodbService.disconnect();
       process.exit(0);
     });
   } else {
+    await mongodbService.disconnect();
     process.exit(0);
   }
 });

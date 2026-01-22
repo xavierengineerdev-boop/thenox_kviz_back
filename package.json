@@ -9,6 +9,9 @@
     "start": "node dist/index.js",
     "export:leads": "ts-node src/scripts/export-logs.ts leads",
     "export:stats": "ts-node src/scripts/export-logs.ts stats",
+    "test:telegram": "ts-node src/scripts/test-telegram.ts",
+    "test:lead": "ts-node src/scripts/test-lead.ts",
+    "test:api": "ts-node src/scripts/test-api.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -20,22 +23,24 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "winston": "^3.11.0",
-    "winston-daily-rotate-file": "^4.7.1",
     "axios": "^1.6.2",
+    "cors": "^2.8.5",
     "csv-writer": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
-    "helmet": "^7.1.0"
+    "helmet": "^7.1.0",
+    "mongoose": "^8.21.0",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/mongoose": "^5.11.97",
     "@types/node": "^20.10.5",
-    "typescript": "^5.3.3",
     "nodemon": "^3.0.2",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

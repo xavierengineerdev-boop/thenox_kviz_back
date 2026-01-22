@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { analyticsEventLogger, RequestWithAnalytics } from '../middleware/logging.middleware';
 import telegramService from '../services/telegram.service';
+import mongodbService from '../services/mongodb.service';
 import { AnalyticsEvent } from '../types/analytics.types';
 import { logger } from '../utils/logger';
 
@@ -57,6 +58,50 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       ip: req.analytics?.ip,
     };
 
+    // Проверяем подключение к MongoDB
+    if (!mongodbService.isMongoConnected()) {
+      logger.warn('MongoDB not connected, attempting to reconnect');
+      try {
+        await mongodbService.connect();
+      } catch (error: any) {
+        logger.error('Failed to connect to MongoDB', { error: error.message });
+      }
+    }
+
+    // Сохраняем лид в MongoDB с проверкой дубликатов
+    let mongoResult;
+    let isDuplicate = false;
+
+    if (mongodbService.isMongoConnected()) {
+      mongoResult = await mongodbService.saveLead(lead, utmParams, enrichedUserData);
+      isDuplicate = mongoResult.isDuplicate;
+
+      if (isDuplicate) {
+        logger.info('Duplicate lead detected, skipping save', {
+          phone: lead.phone,
+          name: lead.name,
+          existingLeadId: mongoResult.lead?._id,
+        });
+
+        return res.status(409).json({
+          success: false,
+          message: 'Lead with this phone number already exists',
+          isDuplicate: true,
+        });
+      }
+
+      if (!mongoResult.success) {
+        logger.error('Failed to save lead to MongoDB', {
+          error: mongoResult.error,
+          phone: lead.phone,
+        });
+        // Продолжаем выполнение, даже если не удалось сохранить в MongoDB
+      }
+    } else {
+      logger.warn('MongoDB not connected, lead will not be saved to database');
+    }
+
+    // Логируем событие
     analyticsEventLogger({
       event: 'lead_created',
       lead,
@@ -65,16 +110,24 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       timestamp: new Date().toISOString(),
     });
 
-    const telegramSent = await telegramService.sendLead({
-      lead,
-      utmParams,
-      userData: enrichedUserData,
-    });
+    // Отправляем в Telegram только если это не дубликат
+    let telegramSent = false;
+    if (!isDuplicate) {
+      telegramSent = await telegramService.sendLead({
+        lead,
+        utmParams,
+        userData: enrichedUserData,
+      });
 
-    if (!telegramSent) {
-      logger.warn('Lead was logged but failed to send to Telegram', {
-        leadName: lead.name,
-        leadPhone: lead.phone,
+      if (!telegramSent) {
+        logger.warn('Lead was logged but failed to send to Telegram', {
+          leadName: lead.name,
+          leadPhone: lead.phone,
+        });
+      }
+    } else {
+      logger.info('Skipping Telegram notification for duplicate lead', {
+        phone: lead.phone,
       });
     }
 
@@ -82,9 +135,11 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       success: true,
       message: 'Lead processed successfully',
       telegramSent,
+      savedToMongo: mongoResult?.success || false,
+      isDuplicate: false,
     });
-  } catch (error) {
-    logger.error('Error processing lead', { error });
+  } catch (error: any) {
+    logger.error('Error processing lead', { error: error.message, stack: error.stack });
     res.status(500).json({
       success: false,
       message: 'Failed to process lead',
