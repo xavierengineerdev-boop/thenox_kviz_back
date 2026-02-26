@@ -16,10 +16,16 @@ const PORT = process.env.PORT || 3001;
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many requests from this IP, please try again later.',
+      code: 'RATE_LIMIT',
+    });
+  },
 });
 
 app.set('trust proxy', true);
