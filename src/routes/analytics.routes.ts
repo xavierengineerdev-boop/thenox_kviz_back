@@ -200,6 +200,7 @@ router.get('/pixel', (req: Request, res: Response) => {
     logger.info('Pixel hit', { pixelId: id, referer: req.get('referer'), ip: req.ip });
   }
   res.set('Cache-Control', 'no-store');
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // разрешить загрузку с другого домена (crypto-shtab.space → api.crypto-shtab.space)
   res.type('image/gif');
   res.send(PIXEL_1X1);
 });
