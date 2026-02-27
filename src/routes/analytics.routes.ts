@@ -191,6 +191,19 @@ router.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// 1×1 прозрачный GIF для трекинг-пикселя (id в query — логируем при необходимости)
+const PIXEL_1X1 = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+
+router.get('/pixel', (req: Request, res: Response) => {
+  const id = req.query.id as string | undefined;
+  if (id) {
+    logger.info('Pixel hit', { pixelId: id, referer: req.get('referer'), ip: req.ip });
+  }
+  res.set('Cache-Control', 'no-store');
+  res.type('image/gif');
+  res.send(PIXEL_1X1);
+});
+
 // GET эндпоинты для проверки (только для диагностики)
 router.get('/event', (req: Request, res: Response) => {
   res.json({
