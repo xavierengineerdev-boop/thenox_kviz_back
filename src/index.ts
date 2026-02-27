@@ -59,6 +59,7 @@ app.get('/health', (req, res) => {
     routes: {
       analytics: '/api/analytics/event (POST)',
       lead: '/api/lead (POST)',
+      pixel: '/api/pixel (GET, ?id=...)',
       health: '/api/analytics/health (GET)',
     },
   });
@@ -101,6 +102,7 @@ app.get('/', (req, res) => {
     endpoints: {
       analytics: '/api/analytics/event (POST)',
       lead: '/api/lead (POST)',
+      pixel: '/api/pixel (GET, ?id=...)',
       health: '/api/analytics/health (GET)',
       serverHealth: '/health (GET)',
     },
