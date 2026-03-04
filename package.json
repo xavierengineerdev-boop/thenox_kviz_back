@@ -12,6 +12,8 @@
     "test:telegram": "ts-node src/scripts/test-telegram.ts",
     "test:lead": "ts-node src/scripts/test-lead.ts",
     "test:api": "ts-node src/scripts/test-api.ts",
+    "test:astracore": "ts-node src/scripts/test-astracore.ts",
+    "test:leads": "ts-node src/scripts/test-leads-telegram-crm.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

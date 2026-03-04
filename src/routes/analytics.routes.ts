@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { analyticsEventLogger, RequestWithAnalytics } from '../middleware/logging.middleware';
 import telegramService from '../services/telegram.service';
+import astracoreService from '../services/astracore.service';
 import mongodbService from '../services/mongodb.service';
 import { AnalyticsEvent } from '../types/analytics.types';
 import { logger } from '../utils/logger';
@@ -141,14 +142,24 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Отправляем в Telegram только если это не дубликат (ни по телефону, ни по IP)
+    // Отправляем в Telegram и в AstraCore CRM только если это не дубликат (ни по телефону, ни по IP)
     let telegramSent = false;
+    let astracoreSent = false;
     if (!isDuplicate && !isIPDuplicate) {
-      telegramSent = await telegramService.sendLead({
-        lead,
-        utmParams,
-        userData: enrichedUserData,
-      });
+      const leadPayload = { lead, utmParams, userData: enrichedUserData };
+
+      telegramSent = await telegramService.sendLead(leadPayload);
+
+      if (astracoreService.isConfigured()) {
+        const crmResult = await astracoreService.sendLead(leadPayload);
+        astracoreSent = crmResult.success;
+        if (!crmResult.success) {
+          logger.warn('Lead was logged but failed to send to AstraCore CRM', {
+            leadName: lead.name,
+            error: crmResult.error,
+          });
+        }
+      }
 
       if (!telegramSent) {
         logger.warn('Lead was logged but failed to send to Telegram', {
@@ -170,6 +181,7 @@ router.post('/lead', async (req: RequestWithAnalytics, res: Response) => {
       success: true,
       message: 'Lead processed successfully',
       telegramSent,
+      astracoreSent,
       savedToMongo: mongoResult?.success || false,
       isDuplicate: false,
       isIPDuplicate: false,
